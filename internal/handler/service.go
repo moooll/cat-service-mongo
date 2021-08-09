@@ -1,15 +1,20 @@
 package handler
 
 import (
-	"cat-service/internal/repository"
+	"github.com/moooll/cat-service-mongo/internal/repository"
+	rediscache "github.com/moooll/cat-service-mongo/internal/repository/rediscache"
 )
 
+// Service type is for working with the database from endpoints
 type Service struct {
-	catalog *repository.Catalog
+	catalog *repository.MongoCatalog
+	cache   *rediscache.Redis
 }
 
-func NewService(cat *repository.Catalog) *Service {
+// NewService creates new *Service
+func NewService(cat *repository.MongoCatalog, cache *rediscache.Redis) *Service {
 	return &Service{
 		cat,
+		cache,
 	}
 }

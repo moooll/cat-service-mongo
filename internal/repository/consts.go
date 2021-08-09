@@ -1,6 +1,6 @@
 package repository
 
-//todo: change
 const (
-	DatabaseURL = "mongodb://localhost:27017"
+	// DatabaseURI is the mongodb connection string
+	DatabaseURI = "mongodb://localhost:27017"
 )

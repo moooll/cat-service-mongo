@@ -1,0 +1,4 @@
+/bin
+.vscode
+/cat-service-mongo
+/vendor
