@@ -19,16 +19,10 @@ func (s *Service) AddCat(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
-	err := s.cache.SetToHash(*cat)
+	err := s.storage.SaveToStorage(c.Request().Context(), *cat)
 	if err != nil {
-		log.Println("save to cache error ", err)
-		return c.JSON(http.StatusInternalServerError, "error saving cat(")
-	}
-
-	err = s.catalog.Save(*cat)
-	if err != nil {
-		log.Println("save ", err)
-		return c.JSON(http.StatusInternalServerError, "error saving cat(")
+		log.Println("save to storage: ", err)
+		return c.JSON(http.StatusInternalServerError, err)
 	}
 
 	return c.JSON(http.StatusCreated, "created")
@@ -42,12 +36,7 @@ func (s *Service) DeleteCat(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
-	err = s.cache.DeleteFromCache(id)
-	if err != nil {
-		log.Println("delete from cache error ", err)
-		return c.JSON(http.StatusInternalServerError, err)
-	}
-	_, err = s.catalog.Delete(id)
+	err = s.storage.DeleteFromStorage(c.Request().Context(), id)
 	if err != nil {
 		log.Println(err.Error())
 		return c.JSON(http.StatusInternalServerError, err)
@@ -59,21 +48,11 @@ func (s *Service) DeleteCat(c echo.Context) error {
 // GetAllCats endpoint sends all cats
 func (s *Service) GetAllCats(c echo.Context) error {
 	var cats []models.Cat
-	cats, err := s.cache.GetAllFromCache()
-	if err != nil || len(cats) == 0 {
-		// cats, err = s.catalog.GetAll()
-		// if err != nil {
-		// 	log.Println(err.Error())
-		// 	return c.JSON(http.StatusInternalServerError, err)
-		// }
-
-		err = s.cache.SetAllToHash(cats)
-		if err != nil {
-			log.Println("save to cache error ", err)
-			return c.JSON(http.StatusInternalServerError, err)
-		}
+	cats, err := s.storage.GetAllFromStorage(c.Request().Context())
+	if err != nil {
+		log.Println("save to cache error ", err)
+		return c.JSON(http.StatusInternalServerError, err)
 	}
-	
 
 	return c.JSON(http.StatusOK, cats)
 }
@@ -85,20 +64,11 @@ func (s *Service) GetCat(c echo.Context) error {
 		log.Println(err.Error())
 		return c.JSON(http.StatusInternalServerError, err)
 	}
-
-	cat, err := s.cache.GetFromCache(id)
-	if err != nil || (models.Cat{}) == cat {
-		// cat, err = s.catalog.Get(id)
-		// if err != nil {
-		// 	log.Println(err.Error())
-		// 	return c.JSON(http.StatusInternalServerError, err)
-		// }
-
-		err = s.cache.SetToHash(cat)
-		if err != nil {
-			log.Println("save to cache error ", err)
-			return c.JSON(http.StatusInternalServerError, err)
-		}
+	
+	cat, err := s.storage.GetFromStorage(c.Request().Context(), id)
+	if err != nil {
+		log.Println(err.Error())
+		return c.JSON(http.StatusInternalServerError, err)
 	}
 
 	return c.JSON(http.StatusOK, cat)
@@ -106,19 +76,13 @@ func (s *Service) GetCat(c echo.Context) error {
 
 // UpdateCat endpoint updates cat specified in body
 func (s *Service) UpdateCat(c echo.Context) error {
-	req := &models.Cat{}
-	if err := (&echo.DefaultBinder{}).BindBody(c, req); err != nil {
+	cat := models.Cat{}
+	if err := (&echo.DefaultBinder{}).BindBody(c, &cat); err != nil {
 		log.Print("bind body: ", err)
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
-	err := s.cache.SetToHash(*req)
-	if err != nil {
-		log.Println("save to cache error ", err)
-		return c.JSON(http.StatusInternalServerError, "error saving to cache(")
-	}
-
-	err = s.catalog.Update(*req)
+	err := s.storage.UpdateStorage(c.Request().Context(), cat)
 	if err != nil {
 		log.Print("update: ", err)
 		return c.JSON(http.StatusInternalServerError, err)

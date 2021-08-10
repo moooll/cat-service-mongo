@@ -7,6 +7,7 @@ import (
 	"github.com/moooll/cat-service-mongo/internal/handler"
 	"github.com/moooll/cat-service-mongo/internal/repository"
 	rediscache "github.com/moooll/cat-service-mongo/internal/repository/rediscache"
+	"github.com/moooll/cat-service-mongo/internal/service"
 
 	"log"
 
@@ -46,8 +47,8 @@ func main() {
 	
 	rdb := redis.NewClient(&redis.Options{
         Addr:     "localhost:6379",
-        Password: "", // no password set
-        DB:       0,  // use default DB
+        Password: "", 
+        DB:       0,  
     })
 
 	redisC := cache.New(&cache.Options{
@@ -55,7 +56,8 @@ func main() {
 		LocalCache: cache.NewTinyLFU(1000, time.Minute),
 	})
 
-	service := handler.NewService(repository.NewCatalog(collection), rediscache.NewRedisCache(redisC, rdb))
+	service := handler.NewService(
+		service.NewStorage(repository.NewCatalog(collection), rediscache.NewRedisCache(redisC, rdb)))
 	e := echo.New()
 	e.POST("/cats", service.AddCat)
 	e.GET("/cats", service.GetAllCats)

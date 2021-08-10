@@ -29,8 +29,8 @@ func NewCatalog(coll *mongo.Collection) *MongoCatalog {
 }
 
 // Save saves a doc to the database, returns the error
-func (c *MongoCatalog) Save(cat models.Cat) error {
-	_, err := c.collection.InsertOne(context.Background(), cat)
+func (c *MongoCatalog) Save(ctx context.Context, cat models.Cat) error {
+	_, err := c.collection.InsertOne(ctx, cat)
 	if err != nil {
 		return err
 	}
@@ -38,9 +38,9 @@ func (c *MongoCatalog) Save(cat models.Cat) error {
 	return nil
 }
 
-// GetFromTheDB retieves a doc by id from the db and returns the doc and the error
-func (c *MongoCatalog) Get(id uuid.UUID) (cat models.Cat, err error) {
-	err = c.collection.FindOne(context.Background(), bson.M{"id": id}).Decode(&cat)
+// Get retieves a doc by id from the db and returns the doc and the error
+func (c *MongoCatalog) Get(ctx context.Context, id uuid.UUID) (cat models.Cat, err error) {
+	err = c.collection.FindOne(ctx, bson.M{"id": id}).Decode(&cat)
 	if err != nil {
 		return models.Cat{}, err
 	}
@@ -48,15 +48,15 @@ func (c *MongoCatalog) Get(id uuid.UUID) (cat models.Cat, err error) {
 	return cat, nil
 }
 
-// GetAllFromTheDB retireves all docs from the db and returns models.Cat slice and error
-func (c *MongoCatalog) GetAll() (cats []models.Cat, err error) {
-	cur, err := c.collection.Find(context.Background(), bson.M{})
+// GetAll retireves all docs from the db and returns models.Cat slice and error
+func (c *MongoCatalog) GetAll(ctx context.Context) (cats []models.Cat, err error) {
+	cur, err := c.collection.Find(ctx, bson.M{})
 	if err != nil {
 		return []models.Cat{}, err
 	}
 
 	cat := models.Cat{}
-	for cur.Next(context.Background()) {
+	for cur.Next(ctx) {
 		err = cur.Decode(&cat)
 		if err != nil {
 			return []models.Cat{}, err
@@ -69,8 +69,8 @@ func (c *MongoCatalog) GetAll() (cats []models.Cat, err error) {
 }
 
 // Delete deletes the doc by id from the database
-func (c *MongoCatalog) Delete(id uuid.UUID) (deleted bson.M, err error) {
-	err = c.collection.FindOneAndDelete(context.Background(), bson.M{"id": id}).Decode(&deleted)
+func (c *MongoCatalog) Delete(ctx context.Context,id uuid.UUID) (deleted bson.M, err error) {
+	err = c.collection.FindOneAndDelete(ctx, bson.M{"id": id}).Decode(&deleted)
 	if err != nil {
 		return bson.M{}, err
 	}
@@ -79,7 +79,7 @@ func (c *MongoCatalog) Delete(id uuid.UUID) (deleted bson.M, err error) {
 }
 
 // Update updates the doc by id in the db, and if is not present, creates it
-func (c *MongoCatalog) Update(cat models.Cat) error {
+func (c *MongoCatalog) Update(ctx context.Context, cat models.Cat) error {
 	opts := options.FindOneAndUpdate().SetUpsert(true)
 	filter := bson.D{{Key: "id", Value: cat.ID}}
 	upd := bson.D{primitive.E{Key: "$set", Value: bson.D{
@@ -92,7 +92,7 @@ func (c *MongoCatalog) Update(cat models.Cat) error {
 	}}}
 	log.Print(cat.ID)
 	updated := models.Cat{}
-	err := c.collection.FindOneAndUpdate(context.Background(), filter, upd, opts).Decode(&updated)
+	err := c.collection.FindOneAndUpdate(ctx, filter, upd, opts).Decode(&updated)
 	if err != nil {
 		return err
 	}

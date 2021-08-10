@@ -1,3 +1,4 @@
+// Package cache contains functions to store, retrieve and delete data from redis cache
 package cache
 
 import (
@@ -25,9 +26,9 @@ func NewRedisCache(c *cache.Cache, cl *redis.Client) *Redis {
 }
 
 // GetFromCache gets record from the redis storage
-func (c *Redis) GetFromCache(uid uuid.UUID) (cat models.Cat, err error) {
+func (c *Redis) GetFromCache(ctx context.Context, uid uuid.UUID) (cat models.Cat, err error) {
 	id := uid.String()
-	err = c.cache.Get(context.Background(), id, &cat)
+	err = c.cache.Get(ctx, id, &cat)
 	if err != nil {
 		return models.Cat{}, err
 	}
@@ -36,8 +37,8 @@ func (c *Redis) GetFromCache(uid uuid.UUID) (cat models.Cat, err error) {
 }
 
 // GetAllFromCache gets all records from the redis storage
-func (c *Redis) GetAllFromCache() (cats []models.Cat, err error) {
-	intK, err := c.client.Do(context.Background(), "KEYS", "*").Result()
+func (c *Redis) GetAllFromCache(ctx context.Context) (cats []models.Cat, err error) {
+	intK, err := c.client.Do(ctx, "KEYS", "*").Result()
 	if err != nil {
 		return []models.Cat{}, err
 	}
@@ -68,7 +69,7 @@ func (c *Redis) SetToHash(cat models.Cat) (err error) {
 	return nil
 }
 
-// // SetToHash puts all records to redis storage
+// // SetAllToHash puts all records to redis storage
 func (c *Redis) SetAllToHash(cats []models.Cat) (err error) {
 	for _, v := range cats {
 		err = c.cache.Set(&cache.Item{
@@ -83,9 +84,9 @@ func (c *Redis) SetAllToHash(cats []models.Cat) (err error) {
 }
 
 // DeleteFromCache deletes record from redis cache
-func (c *Redis) DeleteFromCache(uid uuid.UUID) (err error) {
+func (c *Redis) DeleteFromCache(ctx context.Context, uid uuid.UUID) (err error) {
 	id := uid.String()
-	err = c.cache.Delete(context.Background(), id)
+	err = c.cache.Delete(ctx, id)
 	if err != nil {
 		return err
 	}

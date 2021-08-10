@@ -1,20 +1,17 @@
 package handler
 
 import (
-	"github.com/moooll/cat-service-mongo/internal/repository"
-	rediscache "github.com/moooll/cat-service-mongo/internal/repository/rediscache"
+	"github.com/moooll/cat-service-mongo/internal/service"
 )
 
-// Service type is for working with the database from endpoints
+// Service contains *service.Storage to interact with storage from handlers
 type Service struct {
-	catalog *repository.MongoCatalog
-	cache   *rediscache.Redis
+	storage *service.Storage
 }
 
-// NewService creates new *Service
-func NewService(cat *repository.MongoCatalog, cache *rediscache.Redis) *Service {
+func NewService (s *service.Storage) *Service {
 	return &Service{
-		cat,
-		cache,
-	}
+		storage: s,
+	} 
 }
+
