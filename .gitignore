@@ -2,3 +2,4 @@
 .vscode
 /cat-service-mongo
 /vendor
+.DS_Store

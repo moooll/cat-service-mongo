@@ -2,8 +2,10 @@ package cache
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-redis/cache/v8"
+	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/moooll/cat-service-mongo/internal/models"
 )
@@ -11,12 +13,14 @@ import (
 // Redis contains  redis *cache.Cache var
 type Redis struct {
 	cache *cache.Cache
+	client *redis.Client
 }
 
 // NewRedisCache returns new cache
-func NewRedisCache(c *cache.Cache) *Redis {
+func NewRedisCache(c *cache.Cache, cl *redis.Client) *Redis {
 	return &Redis{
 		cache: c,
+		client: cl,
 	}
 }
 
@@ -31,6 +35,26 @@ func (c *Redis) GetFromCache(uid uuid.UUID) (cat models.Cat, err error) {
 	return cat, nil
 }
 
+// GetAllFromCache gets all records from the redis storage
+func (c *Redis) GetAllFromCache() (cats []models.Cat, err error) {
+	intK, err := c.client.Do(context.Background(), "KEYS", "*").Result()
+	if err != nil {
+		return []models.Cat{}, err
+	}
+	k := intK.([]interface{})
+	for _, v := range k {
+		key := fmt.Sprint(v)
+		var cat models.Cat
+		err = c.cache.Get(context.Background(), key, &cat)
+		if err != nil {
+			return []models.Cat{}, err
+		}
+
+		cats = append(cats, cat)
+	} 
+	return cats, nil
+}
+
 // SetToHash puts the record to redis storage
 func (c *Redis) SetToHash(cat models.Cat) (err error) {
 	err = c.cache.Set(&cache.Item{
@@ -41,6 +65,20 @@ func (c *Redis) SetToHash(cat models.Cat) (err error) {
 		return err
 	}
 
+	return nil
+}
+
+// // SetToHash puts all records to redis storage
+func (c *Redis) SetAllToHash(cats []models.Cat) (err error) {
+	for _, v := range cats {
+		err = c.cache.Set(&cache.Item{
+			Key:   v.ID.String(),
+			Value: v,
+		})
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

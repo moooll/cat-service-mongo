@@ -43,18 +43,19 @@ func main() {
 	collections, _ := mongoClient.Database("catalog").ListCollectionNames(context.Background(), bson.M{})
 	log.Print(collections)
 	log.Print(dbs)
-	ring := redis.NewRing(&redis.RingOptions{
-		Addrs: map[string]string{
-			"server": ":6379",
-		},
-	})
+	
+	rdb := redis.NewClient(&redis.Options{
+        Addr:     "localhost:6379",
+        Password: "", // no password set
+        DB:       0,  // use default DB
+    })
 
 	redisC := cache.New(&cache.Options{
-		Redis:      ring,
+		Redis:      rdb,
 		LocalCache: cache.NewTinyLFU(1000, time.Minute),
 	})
 
-	service := handler.NewService(repository.NewCatalog(collection), rediscache.NewRedisCache(redisC))
+	service := handler.NewService(repository.NewCatalog(collection), rediscache.NewRedisCache(redisC, rdb))
 	e := echo.New()
 	e.POST("/cats", service.AddCat)
 	e.GET("/cats", service.GetAllCats)

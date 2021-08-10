@@ -59,11 +59,21 @@ func (s *Service) DeleteCat(c echo.Context) error {
 // GetAllCats endpoint sends all cats
 func (s *Service) GetAllCats(c echo.Context) error {
 	var cats []models.Cat
-	cats, err := s.catalog.GetAll()
-	if err != nil {
-		log.Println(err.Error())
-		return c.JSON(http.StatusInternalServerError, err)
+	cats, err := s.cache.GetAllFromCache()
+	if err != nil || len(cats) == 0 {
+		// cats, err = s.catalog.GetAll()
+		// if err != nil {
+		// 	log.Println(err.Error())
+		// 	return c.JSON(http.StatusInternalServerError, err)
+		// }
+
+		err = s.cache.SetAllToHash(cats)
+		if err != nil {
+			log.Println("save to cache error ", err)
+			return c.JSON(http.StatusInternalServerError, err)
+		}
 	}
+	
 
 	return c.JSON(http.StatusOK, cats)
 }
@@ -78,11 +88,11 @@ func (s *Service) GetCat(c echo.Context) error {
 
 	cat, err := s.cache.GetFromCache(id)
 	if err != nil || (models.Cat{}) == cat {
-		cat, err = s.catalog.Get(id)
-		if err != nil {
-			log.Println(err.Error())
-			return c.JSON(http.StatusInternalServerError, err)
-		}
+		// cat, err = s.catalog.Get(id)
+		// if err != nil {
+		// 	log.Println(err.Error())
+		// 	return c.JSON(http.StatusInternalServerError, err)
+		// }
 
 		err = s.cache.SetToHash(cat)
 		if err != nil {
