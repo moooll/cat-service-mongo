@@ -2,10 +2,12 @@
 package handler
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/moooll/cat-service-mongo/internal/models"
+	"github.com/moooll/cat-service-mongo/internal/service"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -42,6 +44,11 @@ func (s *Service) DeleteCat(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
+	err = service.MessageOnDelete(c.Request().Context(), s.stream, "delete-cats", fmt.Sprintf("cat id#%s was deleted", id.String()))
+	if err != nil {
+		log.Println("cannot message on delete: ", err.Error())
+	}
+
 	return c.JSON(http.StatusOK, "deleted")
 }
 
@@ -64,7 +71,7 @@ func (s *Service) GetCat(c echo.Context) error {
 		log.Println(err.Error())
 		return c.JSON(http.StatusInternalServerError, err)
 	}
-	
+
 	cat, err := s.storage.GetFromStorage(c.Request().Context(), id)
 	if err != nil {
 		log.Println(err.Error())

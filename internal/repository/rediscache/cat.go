@@ -69,7 +69,7 @@ func (c *Redis) SetToHash(cat models.Cat) (err error) {
 	return nil
 }
 
-// // SetAllToHash puts all records to redis storage
+// SetAllToHash puts all records to redis storage
 func (c *Redis) SetAllToHash(cats []models.Cat) (err error) {
 	for _, v := range cats {
 		err = c.cache.Set(&cache.Item{

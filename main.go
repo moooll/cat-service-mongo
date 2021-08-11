@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/moooll/cat-service-mongo/internal/handler"
 	"github.com/moooll/cat-service-mongo/internal/repository"
 	rediscache "github.com/moooll/cat-service-mongo/internal/repository/rediscache"
-	"github.com/moooll/cat-service-mongo/internal/service"
+	service "github.com/moooll/cat-service-mongo/internal/service"
+	"github.com/moooll/cat-service-mongo/internal/streams"
 
 	"log"
 
@@ -41,31 +43,59 @@ func main() {
 	if err != nil {
 		log.Print("error listing dbs ", err.Error())
 	}
+
 	collections, _ := mongoClient.Database("catalog").ListCollectionNames(context.Background(), bson.M{})
 	log.Print(collections)
 	log.Print(dbs)
-	
+
 	rdb := redis.NewClient(&redis.Options{
-        Addr:     "localhost:6379",
-        Password: "", 
-        DB:       0,  
-    })
+		Addr:     "localhost:6379",
+		Password: "",
+		DB:       0,
+	})
 
 	redisC := cache.New(&cache.Options{
 		Redis:      rdb,
 		LocalCache: cache.NewTinyLFU(1000, time.Minute),
 	})
+	ss := streams.NewStreamService(rdb)
+	serv := handler.NewService(
+		service.NewStorage(repository.NewCatalog(collection), rediscache.NewRedisCache(redisC, rdb)), ss)
+	var mes chan interface{}
+	var er chan error
+	var wg = new(sync.WaitGroup)
 
-	service := handler.NewService(
-		service.NewStorage(repository.NewCatalog(collection), rediscache.NewRedisCache(redisC, rdb)))
+	go func() {
+		for {
+			service.ListenOnDelete(service.ListenOnDeleteArgs{
+				Ctx: context.Background(),
+				Wg: wg,
+				Ss: *ss,
+				Args: streams.ReadArgs{
+					Name: "delete-cats",
+					Id:   "0",
+					Mes:  mes,
+				},
+				ErChan: er,
+			}) 
+			if e := <-er; e != nil {
+				log.Println("error in listen on delete: ", err.Error())
+			}
+		}	
+	}() 
+
+	wg.Add(1)
+	
+	defer wg.Wait()
+
 	e := echo.New()
-	e.POST("/cats", service.AddCat)
-	e.GET("/cats", service.GetAllCats)
-	e.GET("/cats/:id", service.GetCat)
-	e.PUT("/cats", service.UpdateCat)
-	e.DELETE("/cats/:id", service.DeleteCat)
+	e.POST("/cats", serv.AddCat)
+	e.GET("/cats", serv.GetAllCats)
+	e.GET("/cats/:id", serv.GetCat)
+	e.PUT("/cats", serv.UpdateCat)
+	e.DELETE("/cats/:id", serv.DeleteCat)
 	e.GET("/cats/get-rand-cat", handler.GetRandCat)
 	if err := e.Start(":8081"); err != nil {
 		log.Print("could not start server\n", err.Error())
-	}
+	}	
 }
