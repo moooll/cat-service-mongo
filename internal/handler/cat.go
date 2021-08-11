@@ -17,7 +17,7 @@ import (
 func (s *Service) AddCat(c echo.Context) error {
 	cat := &models.Cat{}
 	if err := (&echo.DefaultBinder{}).BindBody(c, &cat); err != nil {
-		log.Println("bind body ", err)
+		log.Println("add cat bind body ", err)
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 

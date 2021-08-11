@@ -6,21 +6,12 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-type PushArgs struct {
-	Stream string
-	Data   interface{}
-}
-
-type ReadArgs struct {
-	Name string
-	Id   string
-	Mes chan interface{}
-}
-
+// StreamService represents the entity for working with redis streams 
 type StreamService struct {
 	client *redis.Client
 }
 
+// NewStreamService creates new instance of StreamService
 func NewStreamService(c *redis.Client) *StreamService {
 	return &StreamService{
 		client: c,
@@ -28,10 +19,11 @@ func NewStreamService(c *redis.Client) *StreamService {
 }
 
 // Push adds data to the stream
-func (s *StreamService) Push(ctx context.Context, args PushArgs) error {
+func (s *StreamService) Push(ctx context.Context, data interface{}) error {
 	err := s.client.XAdd(ctx, &redis.XAddArgs{
-		Stream: args.Stream,
-		Values: args.Data,
+		Stream: "delete-cats",
+		MaxLen: 0,
+		Values: data,
 	}).Err()
 	if err != nil {
 		return err
@@ -41,20 +33,15 @@ func (s *StreamService) Push(ctx context.Context, args PushArgs) error {
 }
 
 // Read reads data from the stream
-func (s *StreamService) Read(ctx context.Context, args ReadArgs) error {
-	data, err := s.client.XRead(ctx, &redis.XReadArgs{
-		Streams: []string{args.Name, args.Id},
-		Count: 1,
+func (s *StreamService) Read(ctx context.Context, id string) (data interface{}, err error) {
+	data, err = s.client.XRead(ctx, &redis.XReadArgs{
+		Streams: []string{"delete-cats", id},
+		Count:   1,
+		Block:   0,
 	}).Result()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	for _, v := range data {
-		for _, f := range v.Messages {
-			args.Mes <- f
-		}
-	}
-
-	return nil
+	return data, nil
 }

@@ -1,0 +1,32 @@
+services:
+  app-1:
+    build: .
+    command: sh -c './wait-for redis:6379 -- ./cat'
+    depends_on:
+      - mongo
+      - redis
+    ports:
+      - "8081:8081"
+  app-2:
+    build: .
+    command: sh -c './wait-for redis:6379 -- ./cat'
+    depends_on:
+      - mongo
+      - redis
+    ports: 
+      - "8082:8081"
+  mongo: 
+    image: mongo
+    ports: 
+      - "27017:27017"
+  redis:
+    image: redis
+    depends_on:
+      - mongo
+    ports: 
+      - "6379:6379"
+
+  
+networks:
+  cat-service:
+    driver: bridge

@@ -4,25 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"sync"
 
 	"github.com/moooll/cat-service-mongo/internal/streams"
 )
 
-type ListenOnDeleteArgs struct {
-	Ctx context.Context
-	Wg *sync.WaitGroup
-	Ss streams.StreamService
-	Args streams.ReadArgs
-	ErChan chan error
-}
 func MessageOnDelete(ctx context.Context, ss *streams.StreamService, stream string, mes string) error {
 	data := map[string]interface{}{"act": "delete", "message": mes}
-	args := &streams.PushArgs{
-		Stream: stream,
-		Data:   data,
-	}
-	err := ss.Push(ctx, *args)
+	err := ss.Push(ctx, data)
 	if err != nil {
 		return err
 	}
@@ -30,13 +18,12 @@ func MessageOnDelete(ctx context.Context, ss *streams.StreamService, stream stri
 	return nil
 }
 
-func ListenOnDelete(args ListenOnDeleteArgs) {
-	defer args.Wg.Done()
-	var resp interface{}
-	err := args.Ss.Read(args.Ctx, args.Args)
+func ListenOnDelete(ctx context.Context, ss *streams.StreamService, id string) error {
+	msg, err := ss.Read(ctx, id)
 	if err != nil {
-		args.ErChan <- err
+		return err
 	}
 
-	log.Println("message on delete: ", fmt.Sprint(resp))
+	log.Println("message on delete: ", fmt.Sprint(msg))
+	return nil
 }

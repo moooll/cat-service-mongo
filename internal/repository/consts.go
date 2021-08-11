@@ -2,5 +2,5 @@ package repository
 
 const (
 	// DatabaseURI is the mongodb connection string
-	DatabaseURI = "mongodb://localhost:27017"
+	DatabaseURI = "mongodb://mongo:27017"
 )

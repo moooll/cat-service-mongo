@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/moooll/cat-service-mongo/internal/handler"
@@ -49,7 +48,7 @@ func main() {
 	log.Print(dbs)
 
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
+		Addr:     "redis:6379",
 		Password: "",
 		DB:       0,
 	})
@@ -61,32 +60,16 @@ func main() {
 	ss := streams.NewStreamService(rdb)
 	serv := handler.NewService(
 		service.NewStorage(repository.NewCatalog(collection), rediscache.NewRedisCache(redisC, rdb)), ss)
-	var mes chan interface{}
-	var er chan error
-	var wg = new(sync.WaitGroup)
 
 	go func() {
+		id := "$"
 		for {
-			service.ListenOnDelete(service.ListenOnDeleteArgs{
-				Ctx: context.Background(),
-				Wg: wg,
-				Ss: *ss,
-				Args: streams.ReadArgs{
-					Name: "delete-cats",
-					Id:   "0",
-					Mes:  mes,
-				},
-				ErChan: er,
-			}) 
-			if e := <-er; e != nil {
+			err := service.ListenOnDelete(context.Background(), ss, id)
+			if err != nil {
 				log.Println("error in listen on delete: ", err.Error())
 			}
-		}	
-	}() 
-
-	wg.Add(1)
-	
-	defer wg.Wait()
+		}
+	}()
 
 	e := echo.New()
 	e.POST("/cats", serv.AddCat)
@@ -97,5 +80,5 @@ func main() {
 	e.GET("/cats/get-rand-cat", handler.GetRandCat)
 	if err := e.Start(":8081"); err != nil {
 		log.Print("could not start server\n", err.Error())
-	}	
+	}
 }
