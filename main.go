@@ -9,6 +9,7 @@ import (
 	rediscache "github.com/moooll/cat-service-mongo/internal/repository/rediscache"
 	service "github.com/moooll/cat-service-mongo/internal/service"
 	"github.com/moooll/cat-service-mongo/internal/streams"
+	"github.com/segmentio/kafka-go"
 
 	"log"
 
@@ -27,13 +28,13 @@ func main() {
 
 	mongoClient, err := mongo.Connect(ctx, options.Client().ApplyURI(repository.DatabaseURI))
 	if err != nil {
-		log.Print("could not connect to the db\n", err.Error())
+		log.Print("error connecting to the db\n", err.Error())
 	}
 
 	defer func() {
 		err = mongoClient.Disconnect(ctx)
 		if err != nil {
-			log.Print("could not disconnect from the db\n", err.Error())
+			log.Print("error disconnecting from the db\n", err.Error())
 		}
 	}()
 
@@ -60,17 +61,51 @@ func main() {
 	ss := streams.NewStreamService(rdb)
 	serv := handler.NewService(
 		service.NewStorage(repository.NewCatalog(collection), rediscache.NewRedisCache(redisC, rdb)), ss)
+	kafkaConn, err := kafkaConnect()
+	if err != nil {
+		log.Println("error connecting to Kafka ", err.Error())
+	}
 
 	go func() {
-		id := "$"
 		for {
-			err := service.ListenOnDelete(context.Background(), ss, id)
+			data, err := ss.Read(ctx, "$")
 			if err != nil {
-				log.Println("error in listen on delete: ", err.Error())
+				log.Println("error listening on delete: ", err.Error())
+			}
+		
+			_, err = kafkaConn.WriteMessages(kafka.Message{
+				Key:   []byte("delete-cats:"),
+				Value: data.([]byte),
+				Time:  time.Now(),
+			})
+			if err != nil {
+				log.Println("error writing to Kafka: ", err.Error())
 			}
 		}
 	}()
 
+	batch := kafkaConn.ReadBatch(10e3, 10e6)
+	
+	defer func() {
+		if err = batch.Close(); err != nil {
+			log.Println("error closing Kafka batch ", err.Error())
+		}
+
+		if err = kafkaConn.Close(); err != nil {
+			log.Println("error closing Kafka connection ", err.Error())
+		}
+	}()
+		
+	b := make([]byte, 10e3)
+
+	go func() {
+		for {
+			err = service.ReadFromKafka(ctx, kafkaConn, batch, b)
+			if err != nil {
+				log.Println("error reading messages from Kafka ", err.Error())
+			}
+		}
+	}()
 	e := echo.New()
 	e.POST("/cats", serv.AddCat)
 	e.GET("/cats", serv.GetAllCats)
@@ -81,4 +116,13 @@ func main() {
 	if err := e.Start(":8081"); err != nil {
 		log.Print("could not start server\n", err.Error())
 	}
+}
+
+func kafkaConnect() (*kafka.Conn, error) {
+	conn, err := kafka.DialLeader(context.Background(), ":9092", "tcp", "delete-cats", 0)
+	if err != nil {
+		return nil, err
+	}
+
+	return conn, nil
 }

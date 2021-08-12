@@ -44,7 +44,7 @@ func (s *Service) DeleteCat(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
-	err = service.MessageOnDelete(c.Request().Context(), s.stream, "delete-cats", fmt.Sprintf("cat id#%s was deleted", id.String()))
+	err = service.MessageToRedisOnDelete(c.Request().Context(), s.stream, "delete-cats", fmt.Sprintf("cat id#%s was deleted", id.String()))
 	if err != nil {
 		log.Println("cannot message on delete: ", err.Error())
 	}
