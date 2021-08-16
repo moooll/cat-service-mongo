@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moooll/cat-service-mongo/internal"
 	"github.com/moooll/cat-service-mongo/internal/handler"
 	"github.com/moooll/cat-service-mongo/internal/repository"
 	rediscache "github.com/moooll/cat-service-mongo/internal/repository/rediscache"
@@ -16,23 +17,24 @@ import (
 	"github.com/go-redis/cache/v8"
 	"github.com/go-redis/redis/v8"
 	"github.com/labstack/echo/v4"
+	"github.com/pquerna/ffjson/ffjson"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func main() {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	mongoCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 
 	defer cancel()
 
-	mongoClient, err := mongo.Connect(ctx, options.Client().ApplyURI(repository.DatabaseURI))
+	mongoClient, err := mongo.Connect(mongoCtx, options.Client().ApplyURI(internal.MongoURI))
 	if err != nil {
 		log.Print("error connecting to the db\n", err.Error())
 	}
 
 	defer func() {
-		err = mongoClient.Disconnect(ctx)
+		err = mongoClient.Disconnect(mongoCtx)
 		if err != nil {
 			log.Print("error disconnecting from the db\n", err.Error())
 		}
@@ -44,12 +46,16 @@ func main() {
 		log.Print("error listing dbs ", err.Error())
 	}
 
-	collections, _ := mongoClient.Database("catalog").ListCollectionNames(context.Background(), bson.M{})
+	collections, err := mongoClient.Database("catalog").ListCollectionNames(context.Background(), bson.M{})
+	if err != nil {
+		log.Print("error listing collections ", err.Error())
+	}
+
 	log.Print(collections)
 	log.Print(dbs)
 
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     "redis:6379",
+		Addr:     internal.RedisURI,
 		Password: "",
 		DB:       0,
 	})
@@ -61,22 +67,35 @@ func main() {
 	ss := streams.NewStreamService(rdb)
 	serv := handler.NewService(
 		service.NewStorage(repository.NewCatalog(collection), rediscache.NewRedisCache(redisC, rdb)), ss)
-	kafkaConn, err := kafkaConnect()
+	kafkaReader, kafkaWriter := kafkaConnect()
 	if err != nil {
 		log.Println("error connecting to Kafka ", err.Error())
 	}
 
+	defer func() {
+		if err = kafkaReader.Close(); err != nil {
+			log.Println("error closing Kafka Reader: ", err.Error())
+		}
+
+		if err = kafkaWriter.Close(); err != nil {
+			log.Println("error closing Kafka Writer: ", err.Error())
+		}
+	}()
+
 	go func() {
 		for {
-			data, err := ss.Read(ctx, "$")
+			data, err := ss.Read(context.Background(), "$")
 			if err != nil {
-				log.Println("error listening on delete: ", err.Error())
+				log.Println("error reading from Redis stream: ", err.Error())
 			}
-		
-			_, err = kafkaConn.WriteMessages(kafka.Message{
+
+			dataB, err := ffjson.Marshal(&data)
+			if err != nil {
+				log.Println("error marshalling data from redis stream: ", err.Error())
+			}
+			err = kafkaWriter.WriteMessages(context.Background(), kafka.Message{
 				Key:   []byte("delete-cats:"),
-				Value: data.([]byte),
-				Time:  time.Now(),
+				Value: dataB,
 			})
 			if err != nil {
 				log.Println("error writing to Kafka: ", err.Error())
@@ -84,28 +103,17 @@ func main() {
 		}
 	}()
 
-	batch := kafkaConn.ReadBatch(10e3, 10e6)
-	
-	defer func() {
-		if err = batch.Close(); err != nil {
-			log.Println("error closing Kafka batch ", err.Error())
-		}
-
-		if err = kafkaConn.Close(); err != nil {
-			log.Println("error closing Kafka connection ", err.Error())
-		}
-	}()
-		
-	b := make([]byte, 10e3)
-
 	go func() {
 		for {
-			err = service.ReadFromKafka(ctx, kafkaConn, batch, b)
+			mes, err := kafkaReader.ReadMessage(context.Background())
 			if err != nil {
-				log.Println("error reading messages from Kafka ", err.Error())
+				log.Println("error reading from Kafka: ", err.Error())
 			}
+
+			log.Println("Kafka message: ", string(mes.Value))
 		}
 	}()
+
 	e := echo.New()
 	e.POST("/cats", serv.AddCat)
 	e.GET("/cats", serv.GetAllCats)
@@ -118,11 +126,20 @@ func main() {
 	}
 }
 
-func kafkaConnect() (*kafka.Conn, error) {
-	conn, err := kafka.DialLeader(context.Background(), ":9092", "tcp", "delete-cats", 0)
-	if err != nil {
-		return nil, err
+func kafkaConnect() (*kafka.Reader, *kafka.Writer) {
+	r := kafka.NewReader(kafka.ReaderConfig{
+		// todo: is it correct brokers' host??
+		Brokers:   []string{internal.KafkaURI},
+		Topic:     "delete-cats",
+		Partition: 0,
+		MaxBytes:  10e6,
+		MinBytes:  10e3,
+	})
+
+	w := &kafka.Writer{
+		Addr:  kafka.TCP(internal.KafkaURI),
+		Topic: "delete-cats",
 	}
 
-	return conn, nil
+	return r, w
 }

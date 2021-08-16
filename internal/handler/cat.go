@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/moooll/cat-service-mongo/internal/models"
-	"github.com/moooll/cat-service-mongo/internal/service"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -44,9 +43,10 @@ func (s *Service) DeleteCat(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
-	err = service.MessageToRedisOnDelete(c.Request().Context(), s.stream, "delete-cats", fmt.Sprintf("cat id#%s was deleted", id.String()))
+	data := map[string]interface{}{"act": "delete", "message": fmt.Sprintf("cat id#%s was deleted", id.String())}
+	err = s.stream.Push(c.Request().Context(), data)
 	if err != nil {
-		log.Println("cannot message on delete: ", err.Error())
+		return err
 	}
 
 	return c.JSON(http.StatusOK, "deleted")
