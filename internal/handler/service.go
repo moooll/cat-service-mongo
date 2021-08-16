@@ -8,14 +8,13 @@ import (
 // Service helps to interact with storage from handlers
 type Service struct {
 	storage *service.Storage
-	stream *streams.StreamService
+	stream  *streams.StreamService
 }
 
 // NewService creates a new instance of *Service
-func NewService (s *service.Storage, stream *streams.StreamService) *Service {
+func NewService(s *service.Storage, stream *streams.StreamService) *Service {
 	return &Service{
 		storage: s,
-		stream: stream,
-	} 
+		stream:  stream,
+	}
 }
-

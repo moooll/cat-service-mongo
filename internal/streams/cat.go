@@ -1,3 +1,4 @@
+// Package streams helps to work with Redis Streams, push and read messages from streams
 package streams
 
 import (
@@ -6,7 +7,7 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-// StreamService represents the entity for working with redis streams 
+// StreamService represents the entity for working with redis streams
 type StreamService struct {
 	client *redis.Client
 }

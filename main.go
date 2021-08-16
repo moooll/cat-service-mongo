@@ -4,13 +4,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/segmentio/kafka-go"
+
 	"github.com/moooll/cat-service-mongo/internal"
 	"github.com/moooll/cat-service-mongo/internal/handler"
 	"github.com/moooll/cat-service-mongo/internal/repository"
 	rediscache "github.com/moooll/cat-service-mongo/internal/repository/rediscache"
 	service "github.com/moooll/cat-service-mongo/internal/service"
 	"github.com/moooll/cat-service-mongo/internal/streams"
-	"github.com/segmentio/kafka-go"
 
 	"log"
 
@@ -67,7 +68,19 @@ func main() {
 	ss := streams.NewStreamService(rdb)
 	serv := handler.NewService(
 		service.NewStorage(repository.NewCatalog(collection), rediscache.NewRedisCache(redisC, rdb)), ss)
-	kafkaReader, kafkaWriter := kafkaConnect()
+
+	kafkaReader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers:   []string{internal.KafkaURI},
+		Topic:     "delete-cats",
+		Partition: 0,
+		MaxBytes:  10e6,
+		MinBytes:  10e3,
+	})
+
+	kafkaWriter := &kafka.Writer{
+		Addr:  kafka.TCP(internal.KafkaURI),
+		Topic: "delete-cats",
+	}
 	if err != nil {
 		log.Println("error connecting to Kafka ", err.Error())
 	}
@@ -91,7 +104,7 @@ func main() {
 
 			dataB, err := ffjson.Marshal(&data)
 			if err != nil {
-				log.Println("error marshalling data from redis stream: ", err.Error())
+				log.Println("error marshaling data from redis stream: ", err.Error())
 			}
 			err = kafkaWriter.WriteMessages(context.Background(), kafka.Message{
 				Key:   []byte("delete-cats:"),
@@ -124,22 +137,4 @@ func main() {
 	if err := e.Start(":8081"); err != nil {
 		log.Print("could not start server\n", err.Error())
 	}
-}
-
-func kafkaConnect() (*kafka.Reader, *kafka.Writer) {
-	r := kafka.NewReader(kafka.ReaderConfig{
-		// todo: is it correct brokers' host??
-		Brokers:   []string{internal.KafkaURI},
-		Topic:     "delete-cats",
-		Partition: 0,
-		MaxBytes:  10e6,
-		MinBytes:  10e3,
-	})
-
-	w := &kafka.Writer{
-		Addr:  kafka.TCP(internal.KafkaURI),
-		Topic: "delete-cats",
-	}
-
-	return r, w
 }

@@ -8,19 +8,20 @@ import (
 	"github.com/go-redis/cache/v8"
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
+
 	"github.com/moooll/cat-service-mongo/internal/models"
 )
 
 // Redis contains  redis *cache.Cache var
 type Redis struct {
-	cache *cache.Cache
+	cache  *cache.Cache
 	client *redis.Client
 }
 
 // NewRedisCache returns new cache
 func NewRedisCache(c *cache.Cache, cl *redis.Client) *Redis {
 	return &Redis{
-		cache: c,
+		cache:  c,
 		client: cl,
 	}
 }
@@ -52,7 +53,7 @@ func (c *Redis) GetAllFromCache(ctx context.Context) (cats []models.Cat, err err
 		}
 
 		cats = append(cats, cat)
-	} 
+	}
 	return cats, nil
 }
 

@@ -1,9 +1,9 @@
-// Package models provides models for the database
+// Package models provides models for the database and http-requests/responses
 package models
 
 import "github.com/google/uuid"
 
-// Cat describes cat entity for http interactions
+// Cat describes cat entity for database and http interactions
 type Cat struct {
 	ID    uuid.UUID `bson:"id" json:"id1"`
 	Name  string    `bson:"name" json:"name"`

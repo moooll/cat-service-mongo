@@ -69,7 +69,7 @@ func (c *MongoCatalog) GetAll(ctx context.Context) (cats []models.Cat, err error
 }
 
 // Delete deletes the doc by id from the database
-func (c *MongoCatalog) Delete(ctx context.Context,id uuid.UUID) (deleted bson.M, err error) {
+func (c *MongoCatalog) Delete(ctx context.Context, id uuid.UUID) (deleted bson.M, err error) {
 	err = c.collection.FindOneAndDelete(ctx, bson.M{"id": id}).Decode(&deleted)
 	if err != nil {
 		return bson.M{}, err

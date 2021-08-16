@@ -1,4 +1,4 @@
-// Package service helps to interact with Storage
+// Package service helps handlers to interact with Storage
 package service
 
 import (
@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/google/uuid"
+
 	"github.com/moooll/cat-service-mongo/internal/models"
 )
 
