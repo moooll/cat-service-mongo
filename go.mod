@@ -11,6 +11,7 @@ require (
 	github.com/pkg/profile v0.0.0-20170413231811-06b906832ed0 // indirect
 	github.com/pquerna/ffjson v0.0.0-20190930134022-aa0246cd15f7
 	github.com/segmentio/kafka-go v0.4.17
+	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0 // indirect
 	github.com/thanhpk/randstr v1.0.4
 	go.mongodb.org/mongo-driver v1.7.1

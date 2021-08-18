@@ -3,26 +3,27 @@ package handler
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/moooll/cat-service-mongo/internal/models"
+	"go.mongodb.org/mongo-driver/mongo"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	log "github.com/sirupsen/logrus"
 )
 
 // AddCat endpoint receives new cat in request body and puts it in the database, if succeeds, sends OK, "created"
 func (s *Service) AddCat(c echo.Context) error {
 	cat := &models.Cat{}
 	if err := (&echo.DefaultBinder{}).BindBody(c, &cat); err != nil {
-		log.Println("add cat bind body ", err)
+		log.Errorln("add cat bind body ", err)
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
 	err := s.storage.SaveToStorage(c.Request().Context(), *cat)
 	if err != nil {
-		log.Println("save to storage: ", err)
+		log.Errorln("save to storage: ", err)
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
@@ -33,20 +34,20 @@ func (s *Service) AddCat(c echo.Context) error {
 func (s *Service) DeleteCat(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		log.Println(err.Error())
+		log.Errorln(err.Error())
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
 	err = s.storage.DeleteFromStorage(c.Request().Context(), id)
 	if err != nil {
-		log.Println(err.Error())
+		log.Errorln(err.Error())
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
 	data := map[string]interface{}{"act": "delete", "message": fmt.Sprintf("cat id#%s was deleted", id.String())}
 	err = s.stream.Push(c.Request().Context(), data)
 	if err != nil {
-		return err
+		log.Errorln(err.Error())
 	}
 
 	return c.JSON(http.StatusOK, "deleted")
@@ -56,9 +57,11 @@ func (s *Service) DeleteCat(c echo.Context) error {
 func (s *Service) GetAllCats(c echo.Context) error {
 	var cats []models.Cat
 	cats, err := s.storage.GetAllFromStorage(c.Request().Context())
-	if err != nil {
-		log.Println("save to cache error ", err)
+	if err != nil && err != mongo.ErrNoDocuments {
+		log.Errorln(err.Error())
 		return c.JSON(http.StatusInternalServerError, err)
+	} else if err == mongo.ErrNoDocuments {
+		return c.String(200, "nothing found")
 	}
 
 	return c.JSON(http.StatusOK, cats)
@@ -67,15 +70,17 @@ func (s *Service) GetAllCats(c echo.Context) error {
 // GetCat sends cat by id from url params
 func (s *Service) GetCat(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		log.Println(err.Error())
+	if err != nil && err != mongo.ErrNoDocuments {
+		log.Errorln(err.Error())
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
 	cat, err := s.storage.GetFromStorage(c.Request().Context(), id)
-	if err != nil {
-		log.Println(err.Error())
+	if err != nil && err != mongo.ErrNoDocuments {
+		log.Errorln(err.Error())
 		return c.JSON(http.StatusInternalServerError, err)
+	} else if err == mongo.ErrNoDocuments {
+		return c.String(200, "nothing found")
 	}
 
 	return c.JSON(http.StatusOK, cat)
@@ -85,13 +90,13 @@ func (s *Service) GetCat(c echo.Context) error {
 func (s *Service) UpdateCat(c echo.Context) error {
 	cat := models.Cat{}
 	if err := (&echo.DefaultBinder{}).BindBody(c, &cat); err != nil {
-		log.Print("bind body: ", err)
+		log.Errorln("bind body: ", err)
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
 	err := s.storage.UpdateStorage(c.Request().Context(), cat)
 	if err != nil {
-		log.Print("update: ", err)
+		log.Errorln("update: ", err)
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 

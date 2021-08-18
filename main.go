@@ -13,12 +13,11 @@ import (
 	service "github.com/moooll/cat-service-mongo/internal/service"
 	"github.com/moooll/cat-service-mongo/internal/streams"
 
-	"log"
-
 	"github.com/go-redis/cache/v8"
 	"github.com/go-redis/redis/v8"
 	"github.com/labstack/echo/v4"
 	"github.com/pquerna/ffjson/ffjson"
+	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -31,29 +30,29 @@ func main() {
 
 	mongoClient, err := mongo.Connect(mongoCtx, options.Client().ApplyURI(internal.MongoURI))
 	if err != nil {
-		log.Print("error connecting to the db\n", err.Error())
+		log.Errorln("error connecting to the db ", err.Error())
 	}
 
 	defer func() {
 		err = mongoClient.Disconnect(mongoCtx)
 		if err != nil {
-			log.Print("error disconnecting from the db\n", err.Error())
+			log.Errorln("error disconnecting from the db ", err.Error())
 		}
 	}()
 
 	collection := mongoClient.Database("catalog").Collection("cats2")
 	dbs, err := mongoClient.ListDatabases(context.Background(), bson.M{})
 	if err != nil {
-		log.Print("error listing dbs ", err.Error())
+		log.Errorln("error listing dbs ", err.Error())
 	}
 
 	collections, err := mongoClient.Database("catalog").ListCollectionNames(context.Background(), bson.M{})
 	if err != nil {
-		log.Print("error listing collections ", err.Error())
+		log.Errorln("error listing collections ", err.Error())
 	}
 
-	log.Print(collections)
-	log.Print(dbs)
+	log.Infoln(collections)
+	log.Infoln(dbs)
 
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     internal.RedisURI,
@@ -73,11 +72,11 @@ func main() {
 
 	defer func() {
 		if err = kafkaReader.Close(); err != nil {
-			log.Println("error closing Kafka Reader: ", err.Error())
+			log.Errorln("error closing Kafka Reader: ", err.Error())
 		}
 
 		if err = kafkaWriter.Close(); err != nil {
-			log.Println("error closing Kafka Writer: ", err.Error())
+			log.Errorln("error closing Kafka Writer: ", err.Error())
 		}
 	}()
 
@@ -85,19 +84,19 @@ func main() {
 		for {
 			data, er := ss.Read(context.Background(), "$")
 			if er != nil {
-				log.Println("error reading from Redis stream: ", err.Error())
+				log.Errorln("error reading from Redis stream: ", err.Error())
 			}
 
 			dataB, e := ffjson.Marshal(&data)
 			if e != nil {
-				log.Println("error marshaling data from redis stream: ", err.Error())
+				log.Errorln("error marshaling data from redis stream: ", err.Error())
 			}
 			err = kafkaWriter.WriteMessages(context.Background(), kafka.Message{
 				Key:   []byte("delete-cats:"),
 				Value: dataB,
 			})
 			if err != nil {
-				log.Println("error writing to Kafka: ", err.Error())
+				log.Errorln("error writing to Kafka: ", err.Error())
 			}
 		}
 	}()
@@ -106,16 +105,16 @@ func main() {
 		for {
 			mes, errr := kafkaReader.ReadMessage(context.Background())
 			if errr != nil {
-				log.Println("error reading from Kafka: ", errr.Error())
+				log.Errorln("error reading from Kafka: ", errr.Error())
 			}
 
-			log.Println("Kafka message: ", string(mes.Value))
+			log.Infoln("Kafka message is: ", string(mes.Value))
 		}
 	}()
 
 	err = echoStart(serv)
 	if err != nil {
-		log.Print("could not start server\n", err.Error())
+		log.Errorln("could not start server ", err.Error())
 	}
 }
 
