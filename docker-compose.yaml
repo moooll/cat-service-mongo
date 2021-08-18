@@ -2,6 +2,7 @@ services:
   app-1:
     build: .
     command: sh -c './wait-for redis:6379 -- ./cat'
+    command: sh -c './wait-for kafka:29092 -- ./cat'
     depends_on:
       - mongo
       - redis

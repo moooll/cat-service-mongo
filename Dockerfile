@@ -6,7 +6,6 @@ COPY . .
 COPY ./wait-for ./wait-for
 RUN ["chmod", "+x", "./wait-for"]
 
-# add linter later
 RUN go mod tidy
 RUN go build -o cat
 

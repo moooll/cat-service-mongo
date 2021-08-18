@@ -3,3 +3,4 @@
 /cat-service-mongo
 /vendor
 .DS_Store
+/kafka-docker

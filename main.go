@@ -68,22 +68,8 @@ func main() {
 	ss := streams.NewStreamService(rdb)
 	serv := handler.NewService(
 		service.NewStorage(repository.NewCatalog(collection), rediscache.NewRedisCache(redisC, rdb)), ss)
-
-	kafkaReader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:   []string{internal.KafkaURI},
-		Topic:     "delete-cats",
-		Partition: 0,
-		MaxBytes:  10e6,
-		MinBytes:  10e3,
-	})
-
-	kafkaWriter := &kafka.Writer{
-		Addr:  kafka.TCP(internal.KafkaURI),
-		Topic: "delete-cats",
-	}
-	if err != nil {
-		log.Println("error connecting to Kafka ", err.Error())
-	}
+	kafkaWriter := kafkaW()
+	kafkaReader := kafkaR()
 
 	defer func() {
 		if err = kafkaReader.Close(); err != nil {
@@ -97,13 +83,13 @@ func main() {
 
 	go func() {
 		for {
-			data, err := ss.Read(context.Background(), "$")
-			if err != nil {
+			data, er := ss.Read(context.Background(), "$")
+			if er != nil {
 				log.Println("error reading from Redis stream: ", err.Error())
 			}
 
-			dataB, err := ffjson.Marshal(&data)
-			if err != nil {
+			dataB, e := ffjson.Marshal(&data)
+			if e != nil {
 				log.Println("error marshaling data from redis stream: ", err.Error())
 			}
 			err = kafkaWriter.WriteMessages(context.Background(), kafka.Message{
@@ -118,15 +104,39 @@ func main() {
 
 	go func() {
 		for {
-			mes, err := kafkaReader.ReadMessage(context.Background())
-			if err != nil {
-				log.Println("error reading from Kafka: ", err.Error())
+			mes, errr := kafkaReader.ReadMessage(context.Background())
+			if errr != nil {
+				log.Println("error reading from Kafka: ", errr.Error())
 			}
 
 			log.Println("Kafka message: ", string(mes.Value))
 		}
 	}()
 
+	err = echoStart(serv)
+	if err != nil {
+		log.Print("could not start server\n", err.Error())
+	}
+}
+
+func kafkaW() *kafka.Writer {
+	return &kafka.Writer{
+		Addr:  kafka.TCP(internal.KafkaURI),
+		Topic: "delete-cats",
+	}
+}
+
+func kafkaR() *kafka.Reader {
+	return kafka.NewReader(kafka.ReaderConfig{
+		Brokers:   []string{internal.KafkaURI},
+		Topic:     "delete-cats",
+		Partition: 0,
+		MaxBytes:  10e6,
+		MinBytes:  10e3,
+	})
+}
+
+func echoStart(serv *handler.Service) error {
 	e := echo.New()
 	e.POST("/cats", serv.AddCat)
 	e.GET("/cats", serv.GetAllCats)
@@ -135,6 +145,7 @@ func main() {
 	e.DELETE("/cats/:id", serv.DeleteCat)
 	e.GET("/cats/get-rand-cat", handler.GetRandCat)
 	if err := e.Start(":8081"); err != nil {
-		log.Print("could not start server\n", err.Error())
+		return err
 	}
+	return nil
 }
