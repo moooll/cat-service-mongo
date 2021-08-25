@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/segmentio/kafka-go"
@@ -80,38 +82,8 @@ func main() {
 		}
 	}()
 
-	go func() {
-		for {
-			data, er := ss.Read(context.Background(), "$")
-			if er != nil {
-				log.Errorln("error reading from Redis stream: ", err.Error())
-			}
-
-			dataB, e := ffjson.Marshal(&data)
-			if e != nil {
-				log.Errorln("error marshaling data from redis stream: ", err.Error())
-			}
-			err = kafkaWriter.WriteMessages(context.Background(), kafka.Message{
-				Key:   []byte("delete-cats:"),
-				Value: dataB,
-			})
-			if err != nil {
-				log.Errorln("error writing to Kafka: ", err.Error())
-			}
-		}
-	}()
-
-	go func() {
-		for {
-			mes, errr := kafkaReader.ReadMessage(context.Background())
-			if errr != nil {
-				log.Errorln("error reading from Kafka: ", errr.Error())
-			}
-
-			log.Infoln("Kafka message is: ", string(mes.Value))
-		}
-	}()
-
+	go writeFromRedisToKafka(ss, kafkaWriter)
+	go readFromKafka(kafkaReader)
 	err = echoStart(serv)
 	if err != nil {
 		log.Errorln("could not start server ", err.Error())
@@ -130,8 +102,8 @@ func kafkaR() *kafka.Reader {
 		Brokers:   []string{internal.KafkaURI},
 		Topic:     "delete-cats",
 		Partition: 0,
-		MaxBytes:  10e6,
-		MinBytes:  10e3,
+		MaxBytes:  10e3,
+		MinBytes:  100,
 	})
 }
 
@@ -142,9 +114,47 @@ func echoStart(serv *handler.Service) error {
 	e.GET("/cats/:id", serv.GetCat)
 	e.PUT("/cats", serv.UpdateCat)
 	e.DELETE("/cats/:id", serv.DeleteCat)
-	e.GET("/cats/get-rand-cat", handler.GetRandCat)
 	if err := e.Start(":8081"); err != nil {
 		return err
 	}
 	return nil
+}
+
+func writeFromRedisToKafka(ss *streams.StreamService, w *kafka.Writer) {
+	i := 0
+	for {
+		data, er := ss.Read(context.Background(), "$")
+		if er != nil {
+			log.Errorln("error reading from Redis stream: ", er.Error())
+		}
+
+		dataB, e := ffjson.Marshal(&data)
+		if e != nil {
+			log.Errorln("error marshaling data from redis stream: ", e.Error())
+		}
+		err := w.WriteMessages(context.Background(), kafka.Message{
+			Key:   []byte(fmt.Sprint(i)),
+			Value: dataB,
+		})
+		if err != nil {
+			log.Errorln("error writing to Kafka: ", err.Error())
+		}
+		i++
+	}
+}
+
+func readFromKafka(r *kafka.Reader) {
+	key := []byte("")
+	for {
+		mes, errr := r.ReadMessage(context.Background())
+		if errr != nil {
+			log.Errorln("error reading from Kafka: ", errr.Error())
+		}
+
+		if !bytes.Equal(mes.Key, key) {
+			log.Infoln("Kafka message is: ", string(mes.Value))
+		}
+
+		key = mes.Key
+	}
 }

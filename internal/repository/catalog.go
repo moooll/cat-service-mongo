@@ -4,12 +4,10 @@ package repository
 import (
 	"context"
 	"log"
-	"strconv"
 
 	"github.com/moooll/cat-service-mongo/internal/models"
 
 	"github.com/google/uuid"
-	"github.com/thanhpk/randstr"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -98,30 +96,4 @@ func (c *MongoCatalog) Update(ctx context.Context, cat models.Cat) error {
 	}
 
 	return nil
-}
-
-// RandCat generates new models.Cat entity with random fields and returns it
-func RandCat() (models.Cat, error) {
-	id := uuid.New()
-	name := randstr.String(8, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	breed := randstr.String(8, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	color := randstr.String(8, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	age, err := strconv.ParseFloat(randstr.String(8, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"), 32)
-	if err != nil {
-		return models.Cat{}, err
-	}
-
-	price, err := strconv.ParseFloat(randstr.String(8, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"), 32)
-	if err != nil {
-		return models.Cat{}, err
-	}
-
-	return models.Cat{
-		ID:    id,
-		Name:  name,
-		Breed: breed,
-		Color: color,
-		Age:   float32(age),
-		Price: float32(price),
-	}, nil
 }

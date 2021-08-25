@@ -1,12 +1,12 @@
-FROM golang:1.16-alpine
+FROM golang:1.16-buster
 
 WORKDIR /cat-service-mongo
 
 COPY . .
 COPY ./wait-for ./wait-for
 RUN ["chmod", "+x", "./wait-for"]
+RUN apt-get update && apt-get install -y netcat
 
-RUN go mod tidy
+RUN go mod vendor
 RUN go build -o cat
 
-CMD ["sh", "-c". "./wait-for redis:6379 -- ./cat"] 

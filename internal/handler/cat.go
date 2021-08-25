@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/moooll/cat-service-mongo/internal/models"
 	"go.mongodb.org/mongo-driver/mongo"
+
+	"github.com/moooll/cat-service-mongo/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
